@@ -165,28 +165,48 @@ class ReceiverUI(ctk.CTkFrame):
             width=120, height=36)
         self.connect_btn.pack(side="right")
 
-        # ── Toolbar ──
-        toolbar = ctk.CTkFrame(self, fg_color="transparent", height=36)
-        toolbar.pack(fill="x", padx=24, pady=(8, 4))
+        # ── Action Bar (Top Controls) ──
+        action_bar = ctk.CTkFrame(self, fg_color="transparent")
+        action_bar.pack(fill="x", padx=24, pady=(8, 4))
 
+        # Left side: Status/Stats
         self.file_count_label = ctk.CTkLabel(
-            toolbar, text="Connect to see shared folders",
+            action_bar, text="Connect to see shared folders",
             font=("Segoe UI", 12), text_color=C["text_dim"])
         self.file_count_label.pack(side="left")
 
-        self.deselect_btn = ctk.CTkButton(
-            toolbar, text="Deselect All", command=self._deselect_all,
+        # Right side: Action Buttons
+        actions_inner = ctk.CTkFrame(action_bar, fg_color="transparent")
+        actions_inner.pack(side="right")
+
+        self.dl_all_btn = ctk.CTkButton(
+            actions_inner, text="📦  Download All (ZIP)", command=self._download_all,
+            font=("Segoe UI Semibold", 12), fg_color="#6b46c1",
+            hover_color="#7c3aed", corner_radius=8,
+            width=150, height=32, state="disabled")
+        self.dl_all_btn.pack(side="right", padx=4)
+
+        self.dl_selected_btn = ctk.CTkButton(
+            actions_inner, text="📥  Download Selected", command=self._download_selected,
+            font=("Segoe UI Semibold", 12), fg_color=C["accent"],
+            hover_color=C["accent_hover"], corner_radius=8,
+            width=160, height=32, state="disabled")
+        self.dl_selected_btn.pack(side="right", padx=4)
+
+        # Selection buttons (smaller)
+        self.select_all_btn = ctk.CTkButton(
+            actions_inner, text="Select All", command=self._select_all,
             font=("Segoe UI", 11), fg_color="transparent",
             hover_color=C["hover"], text_color=C["text2"],
-            width=90, height=28, corner_radius=6, state="disabled")
-        self.deselect_btn.pack(side="right", padx=4)
+            width=70, height=28, corner_radius=6, state="disabled")
+        self.select_all_btn.pack(side="right", padx=2)
 
-        self.select_all_btn = ctk.CTkButton(
-            toolbar, text="Select All", command=self._select_all,
+        self.deselect_btn = ctk.CTkButton(
+            actions_inner, text="Deselect All", command=self._deselect_all,
             font=("Segoe UI", 11), fg_color="transparent",
             hover_color=C["hover"], text_color=C["text2"],
             width=80, height=28, corner_radius=6, state="disabled")
-        self.select_all_btn.pack(side="right", padx=4)
+        self.deselect_btn.pack(side="right", padx=2)
 
         # ── Folder browser ──
         browser_card = ctk.CTkFrame(self, fg_color=C["card"], corner_radius=12,
@@ -214,34 +234,13 @@ class ReceiverUI(ctk.CTkFrame):
         self.placeholder.pack(pady=60)
 
         # ── Bottom bar with enhanced progress ──
-        bottom = ctk.CTkFrame(self, fg_color=C["sidebar"], corner_radius=0, height=120)
+        bottom = ctk.CTkFrame(self, fg_color=C["sidebar"], corner_radius=0, height=70)
         bottom.pack(fill="x", side="bottom")
         bottom.pack_propagate(False)
 
         # Progress section using enhanced widget
         self.status_progress = StatusProgressBar(bottom, fg_color="transparent")
-        self.status_progress.pack(fill="x", pady=(8, 0))
-
-        # Buttons
-        btn_container = ctk.CTkFrame(bottom, fg_color="transparent")
-        btn_container.pack(fill="x", pady=(8, 12))
-        
-        btn_frame = ctk.CTkFrame(btn_container, fg_color="transparent")
-        btn_frame.pack()
-
-        self.dl_selected_btn = ctk.CTkButton(
-            btn_frame, text="📥  Download Selected", command=self._download_selected,
-            font=("Segoe UI Semibold", 13), fg_color=C["accent"],
-            hover_color=C["accent_hover"], corner_radius=8,
-            width=180, height=40, state="disabled")
-        self.dl_selected_btn.pack(side="left", padx=8)
-
-        self.dl_all_btn = ctk.CTkButton(
-            btn_frame, text="📦  Download All (ZIP)", command=self._download_all,
-            font=("Segoe UI Semibold", 13), fg_color="#6b46c1",
-            hover_color="#7c3aed", corner_radius=8,
-            width=180, height=40, state="disabled")
-        self.dl_all_btn.pack(side="left", padx=8)
+        self.status_progress.pack(fill="x", pady=(12, 12))
     
     def _on_connection_selected(self):
         """Handle connection selection from dropdown."""
