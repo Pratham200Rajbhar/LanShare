@@ -49,100 +49,85 @@ class RecentConnectionsDropdown(ctk.CTkFrame):
         self.port_entry = ctk.CTkEntry(port_frame, textvariable=self.port_var,
                                        width=80, font=("Segoe UI", 12), height=32)
         self.port_entry.pack(pady=(2, 0))
+
+        # ── Suggestions Popup (Hidden by default) ──
+        self.suggestions_frame = ctk.CTkFrame(self, fg_color="#2b2b3d", corner_radius=8, 
+                                             border_width=1, border_color="#3a3a50")
+        # Do not pack yet
+
+        self.suggestions_scroll = ctk.CTkScrollableFrame(self.suggestions_frame, height=0, fg_color="transparent")
+        self.suggestions_scroll.pack(fill="both", expand=True, padx=4, pady=4)
+
+        # Bindings for search-as-you-type
+        self.ip_entry.bind("<KeyRelease>", lambda e: self._update_suggestions())
+        self.ip_entry.bind("<FocusIn>", lambda e: self._update_suggestions())
         
-        # Recent connections section
-        if self.connections:
-            recent_frame = ctk.CTkFrame(self, fg_color="#2b2b3d", corner_radius=8)
-            recent_frame.pack(fill="x", padx=4, pady=(8, 4))
-            
-            ctk.CTkLabel(recent_frame, text="Recent Connections:", 
-                         font=("Segoe UI Semibold", 11), text_color="#e4e4e8").pack(
-                         anchor="w", padx=12, pady=(8, 4))
-            
-            # Scrollable frame for connections
-            self.recent_scroll = ctk.CTkScrollableFrame(recent_frame, height=min(150, len(self.connections) * 35))
-            self.recent_scroll.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-            
-            for conn in self.connections[:8]:  # Show up to 8 recent connections
-                self._create_connection_item(self.recent_scroll, conn)
-    
-    def _create_connection_item(self, parent, connection: ConnectionEntry):
-        """Create a single connection item widget."""
-        item_frame = ctk.CTkFrame(parent, fg_color="transparent", height=30)
-        item_frame.pack(fill="x", pady=1)
-        item_frame.pack_propagate(False)
+        # Global click binding to hide suggestions (handled via master)
+        self.master.bind("<Button-1>", self._check_hide_suggestions, add="+")
+
+    def _update_suggestions(self):
+        """Filter and show suggestions based on current input."""
+        query = self.ip_var.get().strip().lower()
         
-        # Connection button (clickable area)
-        btn_frame = ctk.CTkFrame(item_frame, fg_color="#35354a", corner_radius=6, 
-                                 cursor="hand2")
-        btn_frame.pack(fill="both", expand=True, padx=2, pady=1)
+        # Filter connections
+        filtered = [c for c in self.connections if query in c.ip.lower()]
         
-        # Bind click events
-        def on_click(event=None):
+        # Clear old items
+        for w in self.suggestions_scroll.winfo_children():
+            w.destroy()
+            
+        if not filtered or (len(filtered) == 1 and filtered[0].ip == query):
+            self.suggestions_frame.pack_forget()
+            return
+
+        # Limit to 5 results to keep it compact
+        for conn in filtered[:5]:
+            self._create_suggestion_item(self.suggestions_scroll, conn)
+            
+        # Update frame size and show
+        height = min(160, len(filtered[:5]) * 40)
+        self.suggestions_scroll.configure(height=height)
+        self.suggestions_frame.pack(fill="x", padx=4, pady=(4, 0))
+
+    def _create_suggestion_item(self, parent, connection: ConnectionEntry):
+        """Create a suggestion item that fills values when clicked."""
+        item = ctk.CTkFrame(parent, fg_color="#35354a", corner_radius=6, cursor="hand2", height=34)
+        item.pack(fill="x", pady=1)
+        item.pack_propagate(False)
+        
+        def on_click(e=None):
             self.ip_var.set(connection.ip)
             self.port_var.set(connection.port)
+            self.suggestions_frame.pack_forget()
             if self.on_select_callback:
                 self.on_select_callback()
         
-        btn_frame.bind("<Button-1>", on_click)
+        item.bind("<Button-1>", on_click)
         
-        # Connection info
-        info_frame = ctk.CTkFrame(btn_frame, fg_color="transparent")
-        info_frame.pack(fill="both", expand=True, padx=8, pady=4)
-        info_frame.bind("<Button-1>", on_click)
+        lbl = ctk.CTkLabel(item, text=f"🕒 {connection.ip}:{connection.port}", 
+                           font=("Segoe UI", 12), text_color="#e4e4e8", anchor="w")
+        lbl.pack(side="left", padx=10, fill="x", expand=True)
+        lbl.bind("<Button-1>", on_click)
+
+        # Hover
+        item.bind("<Enter>", lambda e: item.configure(fg_color="#404050"))
+        item.bind("<Leave>", lambda e: item.configure(fg_color="#35354a"))
+
+    def _check_hide_suggestions(self, event):
+        """Hide suggestions if clicked outside the entry or frame."""
+        if not self.suggestions_frame.winfo_ismapped():
+            return
+            
+        x, y = event.x_root, event.y_root
         
-        # Main connection text
-        main_label = ctk.CTkLabel(info_frame, text=f"{connection.ip}:{connection.port}",
-                                  font=("Segoe UI Semibold", 12), text_color="#e4e4e8",
-                                  anchor="w")
-        main_label.pack(side="left", fill="x", expand=True)
-        main_label.bind("<Button-1>", on_click)
-        
-        # Success indicator and time
-        success_rate = connection.success_rate
-        if success_rate >= 75:
-            indicator = "🟢"
-        elif success_rate >= 50:
-            indicator = "🟡"
-        else:
-            indicator = "🔴"
-        
-        time_ago = self._format_time_ago(connection.last_used)
-        status_text = f"{indicator} {success_rate:.0f}% • {time_ago}"
-        
-        status_label = ctk.CTkLabel(info_frame, text=status_text,
-                                    font=("Segoe UI", 10), text_color="#9090a0")
-        status_label.pack(side="right")
-        status_label.bind("<Button-1>", on_click)
-        
-        # Hover effects
-        def on_enter(event):
-            btn_frame.configure(fg_color="#404050")
-        
-        def on_leave(event):
-            btn_frame.configure(fg_color="#35354a")
-        
-        for widget in [btn_frame, info_frame, main_label, status_label]:
-            widget.bind("<Enter>", on_enter)
-            widget.bind("<Leave>", on_leave)
-    
-    def _format_time_ago(self, timestamp: float) -> str:
-        """Format timestamp as 'time ago' string."""
-        now = time.time()
-        diff = now - timestamp
-        
-        if diff < 60:
-            return "Just now"
-        elif diff < 3600:
-            minutes = int(diff // 60)
-            return f"{minutes}m ago"
-        elif diff < 86400:
-            hours = int(diff // 3600)
-            return f"{hours}h ago"
-        else:
-            days = int(diff // 86400)
-            return f"{days}d ago"
-    
+        # Check if click is within entry or suggestions frame
+        for w in [self.ip_entry, self.suggestions_frame]:
+            if (w.winfo_rootx() <= x <= w.winfo_rootx() + w.winfo_width() and
+                w.winfo_rooty() <= y <= w.winfo_rooty() + w.winfo_height()):
+                return
+                
+        self.suggestions_frame.pack_forget()
+
     def get_ip(self) -> str:
         return self.ip_var.get().strip()
     
