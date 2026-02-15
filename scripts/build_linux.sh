@@ -18,7 +18,13 @@ python3 scripts/build.py
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo "Build successful! Check the 'dist' folder for the LanShare executable."
+    echo "Build successful! Standard executable in 'dist/'."
+    echo ""
+    echo "Creating Debian package (.deb)..."
+    python3 scripts/package_linux.py
+    echo ""
+    echo "Done! Check the 'dist' folder for both the binary and the .deb package."
+
 else
     echo ""
     echo "BUILD FAILED!"

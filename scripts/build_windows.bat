@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0.."
 echo ==================================================
-3: echo LanShare Build Script for Windows
+echo LanShare Build Script for Windows
 echo ==================================================
 
 echo Checking Python installation...
