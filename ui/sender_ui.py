@@ -6,6 +6,8 @@ from pathlib import Path
 from network.server import HTTPServerManager
 from utils.ip_utils import get_local_ip
 from utils.performance import fs_optimizer, global_cache
+from utils.config import config
+from ui.enhanced_widgets import ImprovedFolderSelector
 
 
 # ─── Color Palette (Windows 11 inspired) ────────────────────────────────
@@ -34,6 +36,8 @@ class SenderUI(ctk.CTkFrame):
         self.switch_callback = switch_callback
         self.server_manager = None
         self.is_running = False
+        self.folder_path_var = ctk.StringVar()
+        self.port_var = ctk.StringVar(value=config.settings.default_port)
         self._build()
 
     def _build(self):
@@ -57,34 +61,20 @@ class SenderUI(ctk.CTkFrame):
         # Folder selection card
         folder_card = ctk.CTkFrame(content, fg_color=C["card"], corner_radius=12,
                                     border_width=1, border_color=C["border"])
-        folder_card.pack(fill="x", pady=(0, 16))
+        folder_card.pack(fill="both", expand=True, pady=(0, 16))
 
         fc_inner = ctk.CTkFrame(folder_card, fg_color="transparent")
-        fc_inner.pack(fill="x", padx=20, pady=16)
+        fc_inner.pack(fill="both", expand=True, padx=16, pady=16)
 
         ctk.CTkLabel(fc_inner, text="Folder to Share",
                      font=("Segoe UI Semibold", 14), text_color=C["text"]).pack(anchor="w")
         ctk.CTkLabel(fc_inner, text="Select the folder you want to share on the network",
-                     font=("Segoe UI", 11), text_color=C["text_dim"]).pack(anchor="w", pady=(2, 10))
+                     font=("Segoe UI", 11), text_color=C["text_dim"]).pack(anchor="w", pady=(2, 8))
 
-        path_row = ctk.CTkFrame(fc_inner, fg_color="transparent")
-        path_row.pack(fill="x")
-
-        self.folder_path_var = ctk.StringVar()
-        ctk.CTkEntry(path_row, textvariable=self.folder_path_var,
-                     font=("Segoe UI", 12), fg_color=C["input_bg"],
-                     border_color=C["border"], corner_radius=8,
-                     height=38).pack(side="left", fill="x", expand=True, padx=(0, 10))
-
-        ctk.CTkButton(path_row, text="Browse", command=self._select_folder,
-                      font=("Segoe UI Semibold", 12), fg_color=C["accent"],
-                      hover_color=C["accent_hover"], corner_radius=8,
-                      width=100, height=38).pack(side="right")
-
-        # Folder info label
-        self.folder_info = ctk.CTkLabel(fc_inner, text="", font=("Segoe UI", 11),
-                                         text_color=C["text_dim"])
-        self.folder_info.pack(anchor="w", pady=(6, 0))
+        # Use enhanced folder selector
+        self.folder_selector = ImprovedFolderSelector(fc_inner, 
+                                                      on_select_callback=self._on_folder_selected)
+        self.folder_selector.pack(fill="both", expand=True)
 
         # Settings card
         settings_card = ctk.CTkFrame(content, fg_color=C["card"], corner_radius=12,
@@ -92,21 +82,31 @@ class SenderUI(ctk.CTkFrame):
         settings_card.pack(fill="x", pady=(0, 16))
 
         sc_inner = ctk.CTkFrame(settings_card, fg_color="transparent")
-        sc_inner.pack(fill="x", padx=20, pady=16)
+        sc_inner.pack(fill="x", padx=16, pady=12)  # Reduced padding
 
         ctk.CTkLabel(sc_inner, text="Server Settings",
                      font=("Segoe UI Semibold", 14), text_color=C["text"]).pack(anchor="w")
 
-        row = ctk.CTkFrame(sc_inner, fg_color="transparent")
-        row.pack(fill="x", pady=(10, 0))
+        settings_row = ctk.CTkFrame(sc_inner, fg_color="transparent")
+        settings_row.pack(fill="x", pady=(8, 0))
 
-        ctk.CTkLabel(row, text="Port:", font=("Segoe UI", 12),
+        # Port setting
+        port_frame = ctk.CTkFrame(settings_row, fg_color="transparent")
+        port_frame.pack(side="left")
+        
+        ctk.CTkLabel(port_frame, text="Port:", font=("Segoe UI", 12),
                      text_color=C["text2"]).pack(side="left")
-        self.port_var = ctk.StringVar(value="8000")
-        ctk.CTkEntry(row, textvariable=self.port_var, width=90,
+        ctk.CTkEntry(port_frame, textvariable=self.port_var, width=90,
                      font=("Segoe UI", 12), fg_color=C["input_bg"],
                      border_color=C["border"], corner_radius=8,
-                     height=36).pack(side="left", padx=(10, 0))
+                     height=32).pack(side="left", padx=(6, 0))
+        
+        # Add settings button
+        settings_btn = ctk.CTkButton(settings_row, text="⚙️", width=32, height=32,
+                                     command=self._show_settings,
+                                     fg_color="transparent", text_color=C["text2"],
+                                     hover_color=C["hover"])
+        settings_btn.pack(side="right")
 
         # Server status card (initially hidden)
         self.status_card = ctk.CTkFrame(content, fg_color=C["card"], corner_radius=12,
@@ -150,45 +150,29 @@ class SenderUI(ctk.CTkFrame):
             width=180, height=40)
         self.start_btn.pack(side="left", padx=8, pady=12)
 
-    def _select_folder(self):
-        folder = filedialog.askdirectory()
-        if folder:
-            self.folder_path_var.set(folder)
-            # Count files asynchronously to avoid UI freezing
-            self.folder_info.configure(text="📂  Analyzing folder...")
-            threading.Thread(target=self._count_files_async, args=(folder,), daemon=True).start()
-
-    def _count_files_async(self, folder_path):
-        """Count files asynchronously to avoid UI blocking."""
+    def _on_folder_selected(self, folder_path):
+        """Handle folder selection from enhanced selector."""
+        self.folder_path_var.set(folder_path)
+        # Add to recent folders
+        threading.Thread(target=self._add_to_recent_folders, 
+                        args=(folder_path,), daemon=True).start()
+    
+    def _add_to_recent_folders(self, folder_path):
+        """Add folder to recent folders with file count and size."""
         try:
-            # Use pathlib for better performance
-            folder_path = Path(folder_path)
-            file_count = sum(1 for f in folder_path.rglob('*') if f.is_file())
-            total_size = sum(f.stat().st_size for f in folder_path.rglob('*') if f.is_file())
-            
-            # Format size
-            size_str = self._format_size(total_size)
-            folder_name = folder_path.name
-            
-            # Update UI in main thread
-            self.after(0, lambda: self.folder_info.configure(
-                text=f"📂  {folder_name}  —  {file_count} file(s)  —  {size_str}")
-            )
-        except Exception:
-            # Fallback to simple display
-            self.after(0, lambda: self.folder_info.configure(
-                text=f"📂  {Path(folder_path).name}  —  Ready to share")
-            )
+            path = Path(folder_path)
+            file_count = sum(1 for f in path.rglob('*') if f.is_file())
+            total_size = sum(f.stat().st_size for f in path.rglob('*') if f.is_file())
+            config.add_folder(folder_path, file_count, total_size)
+        except:
+            config.add_folder(folder_path)
+    
+    def _show_settings(self):
+        """Show advanced settings dialog."""
+        # This could open a settings dialog in the future
+        messagebox.showinfo("Settings", "Advanced settings will be available in a future update.")
 
-    def _format_size(self, size_bytes):
-        """Format file size in human readable format."""
-        if size_bytes == 0:
-            return "0 B"
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if size_bytes < 1024.0:
-                return f"{size_bytes:.1f} {unit}" if unit != 'B' else f"{int(size_bytes)} B"
-            size_bytes /= 1024.0
-        return f"{size_bytes:.1f} PB"
+
 
     def _go_back(self):
         if self.is_running:
@@ -206,7 +190,7 @@ class SenderUI(ctk.CTkFrame):
             self._stop_server()
 
     def _start_server(self):
-        folder = self.folder_path_var.get()
+        folder = self.folder_selector.get_path()
         if not folder:
             messagebox.showerror("Error", "Please select a folder to share.")
             return

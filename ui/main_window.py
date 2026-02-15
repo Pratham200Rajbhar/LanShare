@@ -1,6 +1,7 @@
 import customtkinter as ctk
 from ui.sender_ui import SenderUI
 from ui.receiver_ui import ReceiverUI
+from utils.config import config
 
 
 # ─── Color Palette (Windows 11 inspired) ────────────────────────────────
@@ -91,9 +92,20 @@ class MainWindow:
     def __init__(self, root):
         self.root = root
         self.root.title("LAN Share")
-        self.root.geometry("820x620")
-        self.root.minsize(760, 560)
+        
+        # Use saved window size or defaults
+        width = config.settings.window_width
+        height = config.settings.window_height
+        self.root.geometry(f"{width}x{height}")
+        self.root.minsize(700, 500)  # More flexible minimum size
         self.root.configure(fg_color=COLORS["bg_dark"])
+        
+        # Save window size on close
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
+        # Track window resize for auto-saving
+        self.root.bind("<Configure>", self._on_configure)
+        self._last_size_save = 0
 
         self.current_frame = None
         self.switch_frame("main")
@@ -104,13 +116,45 @@ class MainWindow:
             self.current_frame = None
 
         if frame_name == "main":
-            self.root.geometry("820x620")
+            # Don't force resize for main menu if auto-resize is enabled
+            if not config.settings.auto_resize:
+                self.root.geometry(f"{config.settings.window_width}x{config.settings.window_height}")
             self.current_frame = MainMenu(self.root, self.switch_frame)
         elif frame_name == "sender":
-            self.root.geometry("820x620")
+            # Allow natural sizing for sender UI
+            if not config.settings.auto_resize:
+                self.root.geometry("820x650")
             self.current_frame = SenderUI(self.root, self.switch_frame)
             self.current_frame.pack(fill="both", expand=True)
         elif frame_name == "receiver":
-            self.root.geometry("920x680")
+            # Allow natural sizing for receiver UI
+            if not config.settings.auto_resize:
+                self.root.geometry("920x720")
             self.current_frame = ReceiverUI(self.root, self.switch_frame)
             self.current_frame.pack(fill="both", expand=True)
+    
+    def _on_configure(self, event):
+        """Handle window resize events to save size."""
+        if event.widget == self.root and config.settings.auto_resize:
+            # Debounce resize events to avoid too frequent saves
+            import time
+            current_time = time.time()
+            if current_time - self._last_size_save > 0.5:
+                self._last_size_save = current_time
+                self.root.after(500, self._save_window_size)  # Delay to batch resize events
+    
+    def _save_window_size(self):
+        """Save current window size to config."""
+        try:
+            width = self.root.winfo_width()
+            height = self.root.winfo_height()
+            if width > 100 and height > 100:  # Sanity check
+                config.update_window_size(width, height)
+        except:
+            pass
+    
+    def _on_closing(self):
+        """Handle application closing."""
+        # Save final window size
+        self._save_window_size()
+        self.root.quit()
