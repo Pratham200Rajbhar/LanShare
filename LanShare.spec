@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('/disk2/New folder/LanShare/.venv/lib/python3.12/site-packages/customtkinter', 'customtkinter')],
+    datas=[('C:\\Users\\JARVIS\\AppData\\Roaming\\Python\\Python314\\site-packages\\customtkinter', 'customtkinter')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,5 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets/icon.png'],
+    icon=['assets\\icon.ico'],
 )

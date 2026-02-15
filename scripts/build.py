@@ -28,7 +28,9 @@ def build():
     add_data = f"{ctk_path}{sep}customtkinter"
     
     cmd = [
-        "pyinstaller",
+        sys.executable,
+        "-m",
+        "PyInstaller",
         "--noconfirm",
         "--onefile",
         "--windowed",
