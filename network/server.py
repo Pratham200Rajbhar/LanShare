@@ -132,15 +132,22 @@ class LANShareRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         response_data = json.dumps(file_list, separators=(',', ':')).encode('utf-8')
         
-        # Add gzip compression for large file lists
-        if len(response_data) > 1024:
-            response_data = gzip.compress(response_data, compresslevel=6)
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Encoding', 'gzip')
-        else:
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
+        # Add gzip compression for large file lists with better error handling
+        should_compress = len(response_data) > 1024
+        
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        
+        if should_compress:
+            try:
+                compressed_data = gzip.compress(response_data, compresslevel=6)
+                # Only set gzip header if compression was successful and actually reduces size
+                if len(compressed_data) < len(response_data):
+                    response_data = compressed_data
+                    self.send_header('Content-Encoding', 'gzip')
+            except Exception:
+                # If compression fails, send uncompressed data
+                pass
             
         self.send_header('Content-Length', str(len(response_data)))
         self.send_header('Access-Control-Allow-Origin', '*')

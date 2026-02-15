@@ -34,10 +34,17 @@ class HTTPClient:
             response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
-            # Handle compressed responses
+            # Handle compressed responses with fallback
             if response.headers.get('content-encoding') == 'gzip':
-                content = gzip.decompress(response.content)
-                file_list = json.loads(content.decode('utf-8'))
+                try:
+                    content = gzip.decompress(response.content)
+                    file_list = json.loads(content.decode('utf-8'))
+                except (gzip.BadGzipFile, OSError) as e:
+                    # Fallback: try to parse as regular JSON if gzip fails
+                    try:
+                        file_list = response.json()
+                    except:
+                        return False, f"Failed to decompress server response: {str(e)}"
             else:
                 file_list = response.json()
                 
@@ -48,6 +55,10 @@ class HTTPClient:
             return False, "Failed to connect. Is the server running?"
         except json.JSONDecodeError:
             return False, "Invalid response format from server."
+        except (gzip.BadGzipFile, OSError) as e:
+            return False, f"Error processing server response: {str(e)}"
+        except Exception as e:
+            return False, f"Unexpected error: {str(e)}"
         except Exception as e:
             return False, f"Error: {str(e)}"
 
